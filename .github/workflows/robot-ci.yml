@@ -1,0 +1,81 @@
+name: Robot Tests CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: {}        # กดรันเองได้
+  schedule:
+    - cron: "0 14 * * *"       # รันทุกวัน 21:00 น. เวลาไทย (14:00 UTC)
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # ถ้ามี requirements.txt จะใช้บรรทัดล่างนี้แทน:
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # สำหรับเคสทั่วไปของเอม:
+          pip install robotframework robotframework-seleniumlibrary webdriver-manager
+
+      # ติดตั้ง Google Chrome และ Chromedriver ที่เข้าคู่กัน
+      - name: Setup Google Chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Setup Chromedriver
+        uses: nanasess/setup-chromedriver@v2
+
+      # รัน Robot ด้วย Xvfb (จำลอง display) + headless
+      - name: Run Robot tests (headless)
+        env:
+          DISPLAY: ":99"
+        run: |
+          Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+          echo "Chrome: $(google-chrome --version)"
+          echo "Chromedriver: $(chromedriver --version)"
+
+          # โครงสร้างโปรเจกต์จากรูป:
+          #   resources/keywords.robot, variables.robot, locators.robot
+          #   tests/*.robot
+          # เก็บผลลัพธ์ไว้ใน tests/results
+          mkdir -p tests/results
+          robot -d tests/results tests
+
+      - name: Upload Robot reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robot-report
+          path: |
+            tests/results/*
+            tests/output.xml
+            tests/log.html
+            tests/report.html
+          if-no-files-found: warn
+
+      # (ทางเลือก) โพสต์สรุปผลไว้ใน Job Summary
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Robot Summary" >> $GITHUB_STEP_SUMMARY
+          if [ -f tests/results/report.html ]; then
+            echo "- Report: tests/results/report.html" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -f tests/output.xml ]; then
+            PASSED=$(grep -o 'pass="[^"]*"' tests/output.xml | head -1 | sed 's/[^0-9]*//g')
+            FAILED=$(grep -o 'fail="[^"]*"' tests/output.xml | head -1 | sed 's/[^0-9]*//g')
+            echo "- Passed: $PASSED  |  Failed: $FAILED" >> $GITHUB_STEP_SUMMARY
+          fi

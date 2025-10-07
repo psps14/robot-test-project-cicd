@@ -9,4 +9,4 @@ ${BTN_BURGER}       id=react-burger-menu-btn
 
 
 # notification message box
-${FLASH}             id=flash
+${FLASH}             //div[@class='error-message-container error']
