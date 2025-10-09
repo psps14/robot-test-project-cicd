@@ -1,5 +1,6 @@
 *** Settings ***
 Library    SeleniumLibrary
+Library    Collections
 Resource   variables.robot
 Resource   locators.robot
 

@@ -24,12 +24,40 @@ Verify UI Elements
     Page Should Contain Element    ${FOOTER_FB}
     Page Should Contain Element    ${FOOTER_LI}
 
-#Verify sort Name A→Z
-#    [Documentation]    To verify tha system sort Name A→Z correctly.
+Verify sort Name A→Z
+    [Documentation]    To verify tha system sort Name A→Z correctly.
+    Log in to the website
+    [Tags]    sort    name    asc
+        Select Sort And Wait    Name (A to Z)
+        ${names}=    Get Texts From Elements    ${PRODUCT_NAME}
+        Should List Be Sorted Asc    ${names}
+        Capture Page Screenshot
+
+#Verify sort Name Z→A
+#    [Documentation]    To verify tha system sort Name Z→A correctly.
 #    Log in to the website
-#    [Tags]    sort    name    asc
-#        Select Sort And Wait    Name (A to Z)
-#        ${names}=    Get Texts From Elements    ${PRODUCT_NAME}
-#        Should List Be Sorted Asc    ${names}
+#    [Tags]    sort    name    desc
+#         Select Sort And Wait    Name (Z to A)
+#         ${names}=    Get Texts From Elements    ${ITEM_NAMES}
+#         Should List Be Sorted Desc    ${names}
+#         Capture Page Screenshot
+#
+#Verify sort Price Low→High
+#    [Documentation]    To verify tha system sort Price Low→High correctly.
+#    Log in to the website
+#    [Tags]    sort    price    asc
+#        Select Sort And Wait    Price (low to high)
+#        ${prices}=   Prices To Floats    ${ITEM_PRICES}
+#        Should List Be Sorted Asc    ${prices}
+#        Capture Page Screenshot
+#
+#Verify sort Price High→Low
+#     [Documentation]    To verify that system sort Price High→Low correctly.
+#     Log in to the website
+#     [Tags]    sort    price    desc
+#     Select Sort And Wait    Price (high to low)
+#     ${prices}=   Prices To Floats    ${ITEM_PRICES}
+#     Should List Be Sorted Desc    ${prices}
+#     Capture Page Screenshot
 
 
