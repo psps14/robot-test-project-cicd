@@ -7,7 +7,7 @@ on:
     branches: [ main ]
   workflow_dispatch: {}
   schedule:
-    - cron: "0 14 * * *"   # 21:00 น.ไทย
+    - cron: "0 0 * * *"       # รันทุกวัน 07:00 น.ไทย (00:00 UTC)
 
 jobs:
   test:
@@ -48,7 +48,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: robot-report
-          path: tests/results/**    # อัปโหลดเฉพาะโฟลเดอร์ผลลัพธ์
+          path: tests/results/**
           if-no-files-found: warn
 
       - name: Summary
@@ -61,3 +61,27 @@ jobs:
             echo "- Passed: $PASSED  |  Failed: $FAILED" >> $GITHUB_STEP_SUMMARY
             echo "- Report & Log อยู่ใน artifact \`robot-report\`" >> $GITHUB_STEP_SUMMARY
           fi
+
+      # ส่งอีเมลทุกครั้งที่จบงาน (รวมเคส fail)
+      - name: Send Email Report (Gmail SMTP)
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "Robot CI: ${{ github.repository }} run #${{ github.run_number }} (status: ${{ job.status }})"
+          to: ${{ secrets.MAIL_TO }}
+          from: ${{ secrets.MAIL_USERNAME }}
+          html_body: |
+            <h3>Robot Framework Daily Report</h3>
+            <p>Repository: <b>${{ github.repository }}</b></p>
+            <p>Run #: <b>${{ github.run_number }}</b> — Status: <b>${{ job.status }}</b></p>
+            <p>ดูรายละเอียดการรัน: <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">Action Run Link</a></p>
+            <p>แนบไฟล์ผลการทดสอบไว้ให้ด้านล่าง:</p>
+          attachments: |
+            tests/results/report.html
+            tests/results/log.html
+            tests/results/output.xml
