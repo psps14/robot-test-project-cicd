@@ -51,10 +51,11 @@ jobs:
           path: tests/results/**
           if-no-files-found: warn
 
-      # ===== NEW: สรุประดับ Suite =====
+      # ===== สรุประดับ Suite =====
       - name: Build per-suite table (MD + HTML)
         id: suites
         if: always()
+        shell: bash
         run: |
           python - <<'PY'
           import xml.etree.ElementTree as ET, html, pathlib
@@ -65,7 +66,7 @@ jobs:
               top = root.find("suite")
               suites = top.findall("suite") if top is not None else []
               if not suites and top is not None:
-                  suites = [top]
+                  suites = [top]  # กรณีมี suite เดียว
               i = 1
               for s in suites:
                   name = s.get("name")
@@ -92,16 +93,14 @@ jobs:
           pathlib.Path("tests/results/suite_summary.html").write_text("\n".join(html_rows), encoding="utf-8")
           PY
 
-          # ✅ เขียน outputs ด้วย tee เพื่อให้ delimiter ถูกต้อง 100%
+          # เขียน outputs แบบปลอดภัยด้วย tee (กัน delimiter พัง)
           echo "md<<SUITE_MD"   | tee -a "$GITHUB_OUTPUT" > /dev/null
-          cat tests/results/suite_summary.md | tee -a "$GITHUB_OUTPUT" > /dev/null
+          cat tests/results/suite_summary.md   | tee -a "$GITHUB_OUTPUT" > /dev/null
           echo "SUITE_MD"       | tee -a "$GITHUB_OUTPUT" > /dev/null
 
           echo "html<<SUITE_HTML" | tee -a "$GITHUB_OUTPUT" > /dev/null
           cat tests/results/suite_summary.html | tee -a "$GITHUB_OUTPUT" > /dev/null
           echo "SUITE_HTML"       | tee -a "$GITHUB_OUTPUT" > /dev/null
-
-
 
       - name: Append suite table to Job Summary
         if: always()
@@ -139,9 +138,8 @@ jobs:
             <p>🔗 GitHub Actions Log : <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">Action Run Link</a></p>
             <h4>Suite Status</h4>
             ${{ steps.suites.outputs.html }}
-            <p>Please see attached below</p>
+            <p>Attached: report.html, log.html, output.xml, suite_summary.html</p>
           attachments: |
             tests/results/report.html
             tests/results/log.html
             tests/results/output.xml
-            tests/results/suite_summary.html
