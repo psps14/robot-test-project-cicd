@@ -65,7 +65,7 @@ jobs:
               top = root.find("suite")
               suites = top.findall("suite") if top is not None else []
               if not suites and top is not None:
-                  suites = [top]  # กรณีมี suite เดียว
+                  suites = [top]
               i = 1
               for s in suites:
                   name = s.get("name")
@@ -75,12 +75,13 @@ jobs:
                   status = "PASS" if fails == 0 else "FAIL"
                   rows.append((i, name, status, total, fails))
                   i += 1
-          md = ["| No. | Test Suite | Status | Total | Failed |",
-                "|---:|---|:---:|---:|---:|"]
+
+          md_lines = ["| No. | Test Suite | Status | Total | Failed |",
+                      "|---:|---|:---:|---:|---:|"]
           for i,name,status,total,fails in rows:
               sym = "✅ Passed" if status=="PASS" else "❌ Failed"
-              md.append(f"| {i} | {name} | {sym} | {total} | {fails} |")
-          pathlib.Path("tests/results/suite_summary.md").write_text("\n".join(md), encoding="utf-8")
+              md_lines.append(f"| {i} | {name} | {sym} | {total} | {fails} |")
+          pathlib.Path("tests/results/suite_summary.md").write_text("\n".join(md_lines), encoding="utf-8")
 
           html_rows = ["<table border='1' cellspacing='0' cellpadding='6'>",
                        "<thead><tr><th>No.</th><th>Test Suite</th><th>Status</th><th>Total</th><th>Failed</th></tr></thead><tbody>"]
@@ -90,12 +91,20 @@ jobs:
           html_rows.append("</tbody></table>")
           pathlib.Path("tests/results/suite_summary.html").write_text("\n".join(html_rows), encoding="utf-8")
           PY
-          echo "md<<EOF" >> $GITHUB_OUTPUT
-          cat tests/results/suite_summary.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "html<<EOF" >> $GITHUB_OUTPUT
-          cat tests/results/suite_summary.html >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+
+          # ✅ เขียน outputs แบบ block + delimiter เฉพาะตัว
+          { 
+            echo 'md<<__SUITE_MD__'
+            cat tests/results/suite_summary.md
+            echo '__SUITE_MD__'
+          } >> "$GITHUB_OUTPUT"
+
+          { 
+            echo 'html<<__SUITE_HTML__'
+            cat tests/results/suite_summary.html
+            echo '__SUITE_HTML__'
+          } >> "$GITHUB_OUTPUT"
+
 
       - name: Append suite table to Job Summary
         if: always()
