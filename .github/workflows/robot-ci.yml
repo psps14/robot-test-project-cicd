@@ -76,12 +76,12 @@ jobs:
                   rows.append((i, name, status, total, fails))
                   i += 1
 
-          md_lines = ["| No. | Test Suite | Status | Total | Failed |",
-                      "|---:|---|:---:|---:|---:|"]
+          md = ["| No. | Test Suite | Status | Total | Failed |",
+                "|---:|---|:---:|---:|---:|"]
           for i,name,status,total,fails in rows:
               sym = "✅ Passed" if status=="PASS" else "❌ Failed"
-              md_lines.append(f"| {i} | {name} | {sym} | {total} | {fails} |")
-          pathlib.Path("tests/results/suite_summary.md").write_text("\n".join(md_lines), encoding="utf-8")
+              md.append(f"| {i} | {name} | {sym} | {total} | {fails} |")
+          pathlib.Path("tests/results/suite_summary.md").write_text("\n".join(md), encoding="utf-8")
 
           html_rows = ["<table border='1' cellspacing='0' cellpadding='6'>",
                        "<thead><tr><th>No.</th><th>Test Suite</th><th>Status</th><th>Total</th><th>Failed</th></tr></thead><tbody>"]
@@ -92,18 +92,15 @@ jobs:
           pathlib.Path("tests/results/suite_summary.html").write_text("\n".join(html_rows), encoding="utf-8")
           PY
 
-          # ✅ เขียน outputs แบบ block + delimiter เฉพาะตัว
-          { 
-            echo 'md<<__SUITE_MD__'
-            cat tests/results/suite_summary.md
-            echo '__SUITE_MD__'
-          } >> "$GITHUB_OUTPUT"
+          # ✅ เขียน outputs ด้วย tee เพื่อให้ delimiter ถูกต้อง 100%
+          echo "md<<SUITE_MD"   | tee -a "$GITHUB_OUTPUT" > /dev/null
+          cat tests/results/suite_summary.md | tee -a "$GITHUB_OUTPUT" > /dev/null
+          echo "SUITE_MD"       | tee -a "$GITHUB_OUTPUT" > /dev/null
 
-          { 
-            echo 'html<<__SUITE_HTML__'
-            cat tests/results/suite_summary.html
-            echo '__SUITE_HTML__'
-          } >> "$GITHUB_OUTPUT"
+          echo "html<<SUITE_HTML" | tee -a "$GITHUB_OUTPUT" > /dev/null
+          cat tests/results/suite_summary.html | tee -a "$GITHUB_OUTPUT" > /dev/null
+          echo "SUITE_HTML"       | tee -a "$GITHUB_OUTPUT" > /dev/null
+
 
 
       - name: Append suite table to Job Summary
