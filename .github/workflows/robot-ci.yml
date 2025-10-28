@@ -50,6 +50,48 @@ jobs:
           name: robot-report
           path: tests/results/**
           if-no-files-found: warn
+      - name: Build per-test table (MD + HTML)
+        id: table
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET, html, pathlib
+          p = pathlib.Path("tests/results/output.xml")
+          rows = []
+          if p.exists():
+              root = ET.parse(p).getroot()
+              i = 1
+              for t in root.iter("test"):
+                  name = t.get("name")
+                  status = t.find("status").get("status")
+                  rows.append((i, name, status))
+                  i += 1
+          # Markdown
+          md = ["| No. | Test Scenario | Test Status |",
+                "|---:|---|:---:|"]
+          for i,name,status in rows:
+              md.append(f"| {i} | {name} | {'✅ Passed' if status=='PASS' else '❌ Failed'} |")
+          pathlib.Path("tests/results/summary.md").write_text("\n".join(md), encoding="utf-8")
+          # HTML (สำหรับอีเมล)
+          html_rows = ["<table border='1' cellspacing='0' cellpadding='6'>",
+                       "<thead><tr><th>No.</th><th>Test Scenario</th><th>Test Status</th></tr></thead><tbody>"]
+          for i,name,status in rows:
+              sym = "✅ Passed" if status=="PASS" else "❌ Failed"
+              html_rows.append(f"<tr><td>{i}</td><td>{html.escape(name)}</td><td>{sym}</td></tr>")
+          html_rows.append("</tbody></table>")
+          pathlib.Path("tests/results/summary.html").write_text("\n".join(html_rows), encoding="utf-8")
+          PY
+          echo "md<<EOF" >> $GITHUB_OUTPUT
+          cat tests/results/summary.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "html<<EOF" >> $GITHUB_OUTPUT
+          cat tests/results/summary.html >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Append table to Job Summary
+        if: always()
+        run: |
+          echo "### Test Case Status" >> $GITHUB_STEP_SUMMARY
+          cat tests/results/summary.md >> $GITHUB_STEP_SUMMARY
 
       - name: Summary
         if: always()
@@ -72,15 +114,16 @@ jobs:
           secure: true
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "Robot CI: ${{ github.repository }} run #${{ github.run_number }} (status: ${{ job.status }})"
+          subject: "Robot Framework Test Results [Status: ${{ job.status }}]"
           to: ${{ secrets.MAIL_TO }}
           from: ${{ secrets.MAIL_USERNAME }}
           html_body: |
             <h3>Robot Framework Daily Report</h3>
-            <p>Repository: <b>${{ github.repository }}</b></p>
-            <p>Run #: <b>${{ github.run_number }}</b> — Status: <b>${{ job.status }}</b></p>
-            <p>ดูรายละเอียดการรัน: <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">Action Run Link</a></p>
-            <p>แนบไฟล์ผลการทดสอบไว้ให้ด้านล่าง:</p>
+            <p>📋 Status : <b>${{ job.status }}</b></p>
+            <p>🔗 GitHub Actions Log : <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">Action Run Link</a></p>
+            <h4>Per-test Status</h4>
+            ${{ steps.table.outputs.html }}
+            <p>Please see attached below</p>
           attachments: |
             tests/results/report.html
             tests/results/log.html
