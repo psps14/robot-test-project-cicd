@@ -50,48 +50,58 @@ jobs:
           name: robot-report
           path: tests/results/**
           if-no-files-found: warn
-      - name: Build per-test table (MD + HTML)
-        id: table
+
+      # ===== NEW: สรุประดับ Suite =====
+      - name: Build per-suite table (MD + HTML)
+        id: suites
+        if: always()
         run: |
           python - <<'PY'
           import xml.etree.ElementTree as ET, html, pathlib
-          p = pathlib.Path("tests/results/output.xml")
+          out = pathlib.Path("tests/results/output.xml")
           rows = []
-          if p.exists():
-              root = ET.parse(p).getroot()
+          if out.exists():
+              root = ET.parse(out).getroot()
+              top = root.find("suite")
+              suites = top.findall("suite") if top is not None else []
+              if not suites and top is not None:
+                  suites = [top]  # กรณีมี suite เดียว
               i = 1
-              for t in root.iter("test"):
-                  name = t.get("name")
-                  status = t.find("status").get("status")
-                  rows.append((i, name, status))
+              for s in suites:
+                  name = s.get("name")
+                  tests = list(s.iter("test"))
+                  total = len(tests)
+                  fails = sum(1 for t in tests if t.find("status").get("status") != "PASS")
+                  status = "PASS" if fails == 0 else "FAIL"
+                  rows.append((i, name, status, total, fails))
                   i += 1
-          # Markdown
-          md = ["| No. | Test Scenario | Test Status |",
-                "|---:|---|:---:|"]
-          for i,name,status in rows:
-              md.append(f"| {i} | {name} | {'✅ Passed' if status=='PASS' else '❌ Failed'} |")
-          pathlib.Path("tests/results/summary.md").write_text("\n".join(md), encoding="utf-8")
-          # HTML (สำหรับอีเมล)
-          html_rows = ["<table border='1' cellspacing='0' cellpadding='6'>",
-                       "<thead><tr><th>No.</th><th>Test Scenario</th><th>Test Status</th></tr></thead><tbody>"]
-          for i,name,status in rows:
+          md = ["| No. | Test Suite | Status | Total | Failed |",
+                "|---:|---|:---:|---:|---:|"]
+          for i,name,status,total,fails in rows:
               sym = "✅ Passed" if status=="PASS" else "❌ Failed"
-              html_rows.append(f"<tr><td>{i}</td><td>{html.escape(name)}</td><td>{sym}</td></tr>")
+              md.append(f"| {i} | {name} | {sym} | {total} | {fails} |")
+          pathlib.Path("tests/results/suite_summary.md").write_text("\n".join(md), encoding="utf-8")
+
+          html_rows = ["<table border='1' cellspacing='0' cellpadding='6'>",
+                       "<thead><tr><th>No.</th><th>Test Suite</th><th>Status</th><th>Total</th><th>Failed</th></tr></thead><tbody>"]
+          for i,name,status,total,fails in rows:
+              sym = "✅ Passed" if status=="PASS" else "❌ Failed"
+              html_rows.append(f"<tr><td>{i}</td><td>{html.escape(name)}</td><td>{sym}</td><td>{total}</td><td>{fails}</td></tr>")
           html_rows.append("</tbody></table>")
-          pathlib.Path("tests/results/summary.html").write_text("\n".join(html_rows), encoding="utf-8")
+          pathlib.Path("tests/results/suite_summary.html").write_text("\n".join(html_rows), encoding="utf-8")
           PY
           echo "md<<EOF" >> $GITHUB_OUTPUT
-          cat tests/results/summary.md >> $GITHUB_OUTPUT
+          cat tests/results/suite_summary.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           echo "html<<EOF" >> $GITHUB_OUTPUT
-          cat tests/results/summary.html >> $GITHUB_OUTPUT
+          cat tests/results/suite_summary.html >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Append table to Job Summary
+      - name: Append suite table to Job Summary
         if: always()
         run: |
-          echo "### Test Case Status" >> $GITHUB_STEP_SUMMARY
-          cat tests/results/summary.md >> $GITHUB_STEP_SUMMARY
+          echo "### Suite Status" >> $GITHUB_STEP_SUMMARY
+          cat tests/results/suite_summary.md >> $GITHUB_STEP_SUMMARY
 
       - name: Summary
         if: always()
@@ -101,10 +111,10 @@ jobs:
             PASSED=$(grep -o 'pass="[0-9]\+"' tests/results/output.xml | head -1 | sed 's/[^0-9]*//g')
             FAILED=$(grep -o 'fail="[0-9]\+"' tests/results/output.xml | head -1 | sed 's/[^0-9]*//g')
             echo "- Passed: $PASSED  |  Failed: $FAILED" >> $GITHUB_STEP_SUMMARY
-            echo "- Report & Log อยู่ใน artifact \`robot-report\`" >> $GITHUB_STEP_SUMMARY
+            echo "- รายละเอียดอยู่ใน artifact \`robot-report\`" >> $GITHUB_STEP_SUMMARY
           fi
 
-      # ส่งอีเมลทุกครั้งที่จบงาน (รวมเคส fail)
+      # ส่งอีเมลทุกครั้งที่จบงาน (รวมเคส fail) + แนบตารางระดับ Suite
       - name: Send Email Report (Gmail SMTP)
         if: always()
         uses: dawidd6/action-send-mail@v3
@@ -114,17 +124,18 @@ jobs:
           secure: true
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "Robot Framework Test Results [Status: ${{ job.status }}]"
-          to: ${{ secrets.MAIL_TO }}
-          from: ${{ secrets.MAIL_USERNAME }}
+          to:       ${{ secrets.MAIL_TO }}
+          from:     ${{ secrets.MAIL_USERNAME }}
+          subject:  "Robot Framework Test Results [Status: ${{ job.status }}]"
           html_body: |
             <h3>Robot Framework Daily Report</h3>
             <p>📋 Status : <b>${{ job.status }}</b></p>
             <p>🔗 GitHub Actions Log : <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">Action Run Link</a></p>
-            <h4>Per-test Status</h4>
-            ${{ steps.table.outputs.html }}
+            <h4>Suite Status</h4>
+            ${{ steps.suites.outputs.html }}
             <p>Please see attached below</p>
           attachments: |
             tests/results/report.html
             tests/results/log.html
             tests/results/output.xml
+            tests/results/suite_summary.html
