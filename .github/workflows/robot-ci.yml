@@ -51,11 +51,9 @@ jobs:
           path: tests/results/**
           if-no-files-found: warn
 
-      # ===== สรุประดับ Suite =====
+      # ===== Build suite summary files =====
       - name: Build per-suite table (MD + HTML)
-        id: suites
         if: always()
-        shell: bash
         run: |
           python - <<'PY'
           import xml.etree.ElementTree as ET, html, pathlib
@@ -66,7 +64,7 @@ jobs:
               top = root.find("suite")
               suites = top.findall("suite") if top is not None else []
               if not suites and top is not None:
-                  suites = [top]  # กรณีมี suite เดียว
+                  suites = [top]  # single-suite run
               i = 1
               for s in suites:
                   name = s.get("name")
@@ -93,20 +91,24 @@ jobs:
           pathlib.Path("tests/results/suite_summary.html").write_text("\n".join(html_rows), encoding="utf-8")
           PY
 
-          # เขียน outputs แบบปลอดภัยด้วย tee (กัน delimiter พัง)
-          echo "md<<SUITE_MD"   | tee -a "$GITHUB_OUTPUT" > /dev/null
-          cat tests/results/suite_summary.md   | tee -a "$GITHUB_OUTPUT" > /dev/null
-          echo "SUITE_MD"       | tee -a "$GITHUB_OUTPUT" > /dev/null
-
-          echo "html<<SUITE_HTML" | tee -a "$GITHUB_OUTPUT" > /dev/null
-          cat tests/results/suite_summary.html | tee -a "$GITHUB_OUTPUT" > /dev/null
-          echo "SUITE_HTML"       | tee -a "$GITHUB_OUTPUT" > /dev/null
+      # ===== Set step outputs (no heredoc, no delimiter issues) =====
+      - name: Export suite summary as outputs
+        id: suites
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const md = fs.readFileSync('tests/results/suite_summary.md','utf8');
+            const html = fs.readFileSync('tests/results/suite_summary.html','utf8');
+            core.setOutput('md', md);
+            core.setOutput('html', html);
 
       - name: Append suite table to Job Summary
         if: always()
         run: |
           echo "### Suite Status" >> $GITHUB_STEP_SUMMARY
-          cat tests/results/suite_summary.md >> $GITHUB_STEP_SUMMARY
+          printf "%s\n" "${{ steps.suites.outputs.md }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Summary
         if: always()
@@ -119,7 +121,7 @@ jobs:
             echo "- รายละเอียดอยู่ใน artifact \`robot-report\`" >> $GITHUB_STEP_SUMMARY
           fi
 
-      # ส่งอีเมลทุกครั้งที่จบงาน (รวมเคส fail) + แนบตารางระดับ Suite
+      # ===== Email with suite table embedded =====
       - name: Send Email Report (Gmail SMTP)
         if: always()
         uses: dawidd6/action-send-mail@v3
@@ -143,3 +145,4 @@ jobs:
             tests/results/report.html
             tests/results/log.html
             tests/results/output.xml
+            tests/results/suite_summary.html
