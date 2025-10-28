@@ -140,9 +140,4 @@ jobs:
             <p>🔗 GitHub Actions Log : <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">Action Run Link</a></p>
             <h4>Suite Status</h4>
             ${{ steps.suites.outputs.html }}
-            <p>Attached: report.html, log.html, output.xml, suite_summary.html</p>
-          attachments: |
-            tests/results/report.html
-            tests/results/log.html
-            tests/results/output.xml
-            tests/results/suite_summary.html
+
